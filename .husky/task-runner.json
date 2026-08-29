@@ -1,13 +1,20 @@
 {
+  "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
   "tasks": [
     {
-      "name": "Run pre-commit hook",
-      "command": "pwsh",
+      "name": "dotnet-format",
+      "group": "pre-commit",
+      "command": "dotnet",
       "args": [
-        "-File",
-        ".husky/pre-commit"
+        "format",
+        "--verify-no-changes",
+        "--verbosity",
+        "quiet"
       ],
-      "group": "pre-commit"
+      "include": [
+        "**/*.cs"
+      ],
+      "output": "always"
     }
   ]
 }

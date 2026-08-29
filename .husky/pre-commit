@@ -1,31 +1,4 @@
-#!/usr/bin/env pwsh
-# Husky.NET pre-commit hook
-# Runs dotnet format to enforce code style
+#!/usr/bin/env sh
+set -eu
 
-Write-Host "Running pre-commit checks..." -ForegroundColor Cyan
-
-# Check if there are any staged C# files
-$stagedFiles = git diff --cached --name-only --diff-filter=ACM | Where-Object { $_ -match '\.cs$' }
-
-if ($stagedFiles) {
-    Write-Host "Found $($stagedFiles.Count) staged C# file(s). Running dotnet format..." -ForegroundColor Yellow
-    
-    # Run dotnet format on the entire solution/project
-    # This will use the .editorconfig settings
-    $formatResult = dotnet format --verify-no-changes --verbosity quiet
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "" -ForegroundColor Red
-        Write-Host "Code formatting issues detected!" -ForegroundColor Red
-        Write-Host "Run 'dotnet format' to fix formatting issues." -ForegroundColor Yellow
-        Write-Host "" -ForegroundColor Red
-        exit 1
-    }
-    
-    Write-Host "Code formatting check passed!" -ForegroundColor Green
-} else {
-    Write-Host "No C# files staged for commit. Skipping format check." -ForegroundColor Gray
-}
-
-Write-Host "Pre-commit checks complete!" -ForegroundColor Green
-exit 0
+dotnet husky run --group pre-commit
