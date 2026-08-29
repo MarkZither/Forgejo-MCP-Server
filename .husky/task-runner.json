@@ -1,0 +1,13 @@
+{
+  "tasks": [
+    {
+      "name": "Run pre-commit hook",
+      "command": "pwsh",
+      "args": [
+        "-File",
+        ".husky/pre-commit"
+      ],
+      "group": "pre-commit"
+    }
+  ]
+}
