@@ -4,7 +4,6 @@
     <Project Path="src/Forgejo.McpServer/Forgejo.McpServer.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Forgejo.McpServer.Http.Tests/Forgejo.McpServer.Http.Tests.csproj" />
-    <Project Path="tests/Forgejo.McpServer.Stdio.Tests/Forgejo.McpServer.Stdio.Tests.csproj" />
+    <Project Path="tests/Forgejo.McpServer.Tests/Forgejo.McpServer.Tests.csproj" />
   </Folder>
 </Solution>
