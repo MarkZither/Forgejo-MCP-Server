@@ -2,9 +2,9 @@
 
 ## Setup
 
-- [ ] [P] Confirm the Forgejo API contract, auth scopes, and version assumptions for PR operations and document them in the feature boundary.
-- [ ] [P] Validate that the branching strategy and repo governance follow the SDD process and keep work on the feature branch.
-- [ ] [P] Capture the design decision for the Kiota-backed Forgejo client and auth model in an ADR if the client strategy is not already approved.
+- [x] [P] Confirm the Forgejo API contract, auth scopes, and version assumptions for PR operations and document them in the feature boundary.
+- [x] [P] Validate that the branching strategy and repo governance follow the SDD process and keep work on the feature branch.
+- [x] [P] Capture the design decision for the Kiota-backed Forgejo client and auth model in an ADR if the client strategy is not already approved.
 
 ## Foundational
 
