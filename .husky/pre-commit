@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+
+dotnet husky run --group pre-commit
