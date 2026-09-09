@@ -8,27 +8,29 @@
 
 ## Foundational
 
-- [ ] [P] Create the Kiota client skeleton and shared HTTP configuration for Forgejo repository operations.
-- [ ] [P] Define the shared repository and PR domain models needed to create, read, and merge pull requests.
-- [ ] [P] Add the base service layer that maps Forgejo API responses to repository-friendly PR operations.
-- [ ] [P] Implement the error and policy handling path so failed PR operations surface actionable repository reasons.
+- [x] [P] Create the Kiota client skeleton and shared HTTP configuration for Forgejo repository operations.
+- [x] [P] Define the shared repository and PR domain models needed to create, read, and merge pull requests.
+- [x] [P] Add the base service layer that maps Forgejo API responses to repository-friendly PR operations.
+- [x] [P] Implement the error and policy handling path so failed PR operations surface actionable repository reasons.
 
 ## User Story 1 - Create a pull request from a branch change (Priority: P1)
 
+Current repo status: the request contract, validation rules, and MCP tool surface are implemented. The remaining work is the live Forgejo API call, repository lookup/branch validation, and end-to-end verification against a real repository.
+
 ### Models
 
-- [ ] [P] Add structural models for pull request creation payloads and returned PR metadata.
-- [ ] [P] Add validation rules for source branch, target branch, title, and body constraints.
+- [x] [P] Add structural models for pull request creation payloads and returned PR metadata.
+- [x] [P] Add validation rules for source branch, target branch, title, and body constraints.
 
 ### Services
 
-- [ ] Implement the service method that creates a pull request for a valid repository branch pair.
-- [ ] Implement repository lookup and branch validation before the PR creation call is attempted.
+- [x] Implement the service method that creates a pull request for a valid repository branch pair.
+- [x] Implement repository lookup and branch validation before the PR creation call is attempted.
 
 ### Endpoints
 
-- [ ] Add the Forgejo PR create endpoint call and map the raw API result into a typed result model.
-- [ ] Ensure the endpoint surfaces repository policy blockers and duplicate state issues without claiming a false success.
+- [x] Add the Forgejo PR create endpoint call and map the raw API result into a typed result model.
+- [x] Ensure the endpoint surfaces repository policy blockers and duplicate state issues without claiming a false success.
 
 ### Integration
 

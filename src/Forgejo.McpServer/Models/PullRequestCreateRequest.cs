@@ -30,7 +30,8 @@ public sealed class PullRequestCreateRequest {
         !string.IsNullOrWhiteSpace(Repository) &&
         !string.IsNullOrWhiteSpace(HeadBranch) &&
         !string.IsNullOrWhiteSpace(BaseBranch) &&
-        !string.IsNullOrWhiteSpace(Title);
+        !string.IsNullOrWhiteSpace(Title) &&
+        !string.Equals(HeadBranch.Trim(), BaseBranch.Trim(), StringComparison.OrdinalIgnoreCase);
 
     public CreatePullRequestOption ToCreatePullRequestOption() {
         if (!IsValid) {

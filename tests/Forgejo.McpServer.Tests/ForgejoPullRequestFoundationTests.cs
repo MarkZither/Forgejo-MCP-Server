@@ -29,6 +29,23 @@ public class ForgejoPullRequestFoundationTests {
     }
 
     [Test]
+    public async Task ForgejoPullRequestService_RejectsSameBranchPullRequest() {
+        var service = new ForgejoPullRequestService(ForgejoClientFactory.Create("https://forgejo.example.com", "secret-token"));
+        var request = new PullRequestCreateRequest(
+            "acme",
+            "demo-repo",
+            "main",
+            "main",
+            "Same branch pull request");
+
+        var result = await service.CreateAsync(request, CancellationToken.None);
+
+        await Assert.That(result.Success).IsFalse();
+        await Assert.That(result.ErrorCode).IsEqualTo("validation_error");
+        await Assert.That(result.RepositoryReason).Contains("source branch");
+    }
+
+    [Test]
     public async Task ForgejoClientFactory_UsesProvidedBaseUrlAndToken() {
         var client = ForgejoClientFactory.Create("https://forgejo.example.com", "secret-token");
 
