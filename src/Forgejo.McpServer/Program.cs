@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
+using Forgejo.McpServer.Configuration;
 using Forgejo.McpServer.Services;
 using Forgejo.McpServer.Tools;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -62,13 +64,18 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 try {
+    var builder = Host.CreateApplicationBuilder(args);
+    builder.Services.AddOptions<ForgejoOptions>()
+        .BindConfiguration("Forgejo");
+
+    var forgejoOptions = builder.Configuration.GetSection("Forgejo").Get<ForgejoOptions>() ?? new ForgejoOptions();
     var currentDirectory = Environment.CurrentDirectory;
     var baseUrl = GetArgumentValue(args, "forgejo-base-url")
-        ?? Environment.GetEnvironmentVariable("FORGEJO_BASE_URL")
-        ?? "https://forgejo.example.com";
+        ?? forgejoOptions.BaseUrl
+        ?? throw new InvalidOperationException("Forgejo:BaseUrl is required. Set it in user secrets or with the environment variable Forgejo__BaseUrl.");
     var token = GetArgumentValue(args, "forgejo-token")
-        ?? Environment.GetEnvironmentVariable("FORGEJO_TOKEN")
-        ?? "development-token";
+        ?? forgejoOptions.Token
+        ?? throw new InvalidOperationException("Forgejo:Token is required. Set it in user secrets or with the environment variable Forgejo__Token.");
 
     Log.Information("Forgejo MCP server starting");
     Log.Information("CurrentDirectory={CurrentDirectory}", currentDirectory);
@@ -77,8 +84,6 @@ try {
     Log.Information("LogFile={LogFile}", logPath);
     Log.Information("ForgejoBaseUrl={BaseUrl}", baseUrl);
     Log.Information("ForgejoToken={Token}", RedactSecret(token));
-
-    var builder = Host.CreateApplicationBuilder(args);
 
     builder.Logging.ClearProviders();
     builder.Logging.AddSerilog(Log.Logger, dispose: true);
