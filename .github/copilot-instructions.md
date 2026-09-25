@@ -91,10 +91,11 @@ All code must conform to the K&R (Kernighan & Ritchie) style as defined in `.edi
 - Run `dotnet format` to fix violations before committing
 
 **When writing or modifying C# code:**
-1. Follow `.editorconfig` rules strictly
-2. Use `dotnet format` to auto-format before committing
-3. Never override EditorConfig settings in code
-4. If the pre-commit hook fails, run `dotnet format` and re-stage changes
+1. Never use `--no-verify`
+2. Follow `.editorconfig` rules strictly
+3. Use `dotnet format` to auto-format before committing
+4. Never override EditorConfig settings in code
+5. If the pre-commit hook fails, run `dotnet format` and re-stage changes
 
 ---
 

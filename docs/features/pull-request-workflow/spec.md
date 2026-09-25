@@ -36,6 +36,16 @@
 - **Per-call cost ceiling**: N/A - billed via the runtime platform plan
 - **Cost-incident escalation**: N/A - cost governed by the runtime platform plan
 
+## API Contract and Auth Model
+
+- **Forgejo compatibility**: The workflow targets Forgejo instances exposing the GitHub-compatible REST API surface, with pull request operations centered on repository, branch, issue, and merge endpoints.
+- **Core endpoint set**: Repository and PR operations are expected to use endpoints such as `/api/v1/repos/{owner}/{repo}/pulls`, `/api/v1/repos/{owner}/{repo}/pulls/{index}`, `/api/v1/repos/{owner}/{repo}/issues/{index}/comments`, and `/api/v1/repos/{owner}/{repo}/pulls/{index}/merge`, with JSON request and response bodies.
+- **Auth model**: Access is granted through a scoped Forgejo token or bearer credential supplied by the runtime configuration. The server must never broaden permissions beyond the repository scope required for PR create, read, comment, and merge operations.
+- **Required scopes**: The credential must allow repository metadata access, branch inspection, and PR mutation for the target repository. Write access is required only for the repository being operated on; no cross-repository admin scope is assumed.
+- **Version assumptions**: The implementation assumes a Forgejo version with a stable GitHub-compatible PR API and does not rely on instance-specific behavior not present in the documented API contract.
+- **Failure discipline**: Any non-2xx response, partial mutation, or repository policy rejection must be surfaced as a structured failure result instead of a claimed success.
+- **Consistency rule**: A PR and comment action must read the authoritative Forgejo state before mutation and must not report success without API confirmation.
+
 ## User Scenarios & Tests *(required)*
 
 ### User Story 1 - Create a pull request from a prepared branch change (Priority: P1)

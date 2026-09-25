@@ -1,2 +1,9 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Forgejo.KiotaClient/Forgejo.KiotaClient.csproj" />
+    <Project Path="src/Forgejo.McpServer/Forgejo.McpServer.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Forgejo.McpServer.Tests/Forgejo.McpServer.Tests.csproj" />
+  </Folder>
 </Solution>
