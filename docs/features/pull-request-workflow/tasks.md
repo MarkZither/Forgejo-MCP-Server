@@ -15,7 +15,7 @@
 
 ## User Story 1 - Create a pull request from a branch change (Priority: P1)
 
-Current repo status: the request contract, validation rules, and MCP tool surface are implemented. The remaining work is the live Forgejo API call, repository lookup/branch validation, and end-to-end verification against a real repository.
+Current repo status: the request contract, validation rules, and MCP tool surface are implemented. The create-PR flow has been validated against the live Forgejo repository, and the merge path has also been proven through an actual repository merge. The remaining work is to validate the rejection path for branch permissions and repository rules.
 
 ### Models
 
@@ -34,7 +34,7 @@ Current repo status: the request contract, validation rules, and MCP tool surfac
 
 ### Integration
 
-- [ ] Validate the end-to-end create-PR flow using a test repository and confirm the PR is visible with correct metadata.
+- [x] Validate the end-to-end create-PR flow using a test repository and confirm the PR is visible with correct metadata.
 - [ ] Verify the user experience fails cleanly when branch permissions or repository rules reject the request.
 
 ## User Story 2 - Review and comment on pull request discussion (Priority: P1)
