@@ -193,11 +193,9 @@ public sealed class ForgejoPullRequestService {
                     "The repository did not return a pull request for the requested number.");
             }
 
-            if (pullRequest.Merged == true || string.Equals(pullRequest.State, "closed", StringComparison.OrdinalIgnoreCase)) {
-                return PullRequestOperationResult.Failure(
-                    "Forgejo will not merge a pull request that has already been merged or closed.",
-                    "already_merged",
-                    "The pull request is not in an open state for a merge operation.");
+            var mergeReadinessFailure = ValidateMergeReadiness(pullRequest);
+            if (mergeReadinessFailure is not null) {
+                return mergeReadinessFailure;
             }
 
             var requestPayload = request.ToMergePullRequestOption();
@@ -337,8 +335,13 @@ public sealed class ForgejoPullRequestService {
                 GetRepositoryMessage(ex));
         } catch (APIError ex) {
             return MapRepositoryFailure(
-                "Forgejo reported a repository error while creating the pull request.",
-                "repository_error",
+                "Forgejo reported a repository policy or validation rejection while creating the pull request.",
+                GetRepositoryFailureCode(ex, defaultCode: "repository_error"),
+                GetRepositoryMessage(ex));
+        } catch (ApiException ex) {
+            return MapRepositoryFailure(
+                "Forgejo rejected the pull request because repository policy or permissions blocked it.",
+                GetRepositoryFailureCode(ex, defaultCode: "repository_error"),
                 GetRepositoryMessage(ex));
         } catch (Exception ex) when (ex is not OperationCanceledException) {
             return PullRequestOperationResult.Failure(
@@ -353,6 +356,39 @@ public sealed class ForgejoPullRequestService {
         string errorCode,
         string repositoryReason) =>
         PullRequestOperationResult.Failure(message, errorCode, repositoryReason);
+
+    private static PullRequestOperationResult? ValidateMergeReadiness(
+        MarkZither.Forgejo.ApiClient.Models.PullRequest pullRequest) {
+        if (pullRequest.Merged == true || string.Equals(pullRequest.State, "closed", StringComparison.OrdinalIgnoreCase)) {
+            return PullRequestOperationResult.Failure(
+                "Forgejo will not merge a pull request that has already been merged or closed.",
+                "already_merged",
+                "The pull request is not in an open state for a merge operation.");
+        }
+
+        if (pullRequest.Draft == true) {
+            return PullRequestOperationResult.Failure(
+                "Forgejo will not merge a draft pull request until it is marked ready for review.",
+                "merge_blocked",
+                "The pull request is still a draft and has not met the review requirements to be mergeable.");
+        }
+
+        if (pullRequest.IsLocked == true) {
+            return PullRequestOperationResult.Failure(
+                "Forgejo will not merge a locked pull request while the discussion is restricted.",
+                "merge_blocked",
+                "The pull request is locked and cannot be merged until repository moderators unlock it.");
+        }
+
+        if (pullRequest.Mergeable == false) {
+            return PullRequestOperationResult.Failure(
+                "Forgejo will not merge a pull request that is not currently mergeable.",
+                "merge_blocked",
+                "The pull request is not currently mergeable because it has conflicts or repository checks are still pending.");
+        }
+
+        return null;
+    }
 
     private async Task<MarkZither.Forgejo.ApiClient.Models.PullRequest?> FindVisiblePullRequestAsync(
         string owner,
@@ -388,6 +424,38 @@ public sealed class ForgejoPullRequestService {
         return sameNumber || sameId || sameBranchAndTitle;
     }
 
-    private static string GetRepositoryMessage(ApiException exception) =>
-        !string.IsNullOrWhiteSpace(exception.Message) ? exception.Message : "The Forgejo repository rejected the request.";
+    private static string GetRepositoryMessage(ApiException exception) {
+        var message = exception.Message ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(message)) {
+            return "The Forgejo repository rejected the request.";
+        }
+
+        if (message.Contains("no error factory is registered", StringComparison.OrdinalIgnoreCase)
+            && message.Contains("403", StringComparison.OrdinalIgnoreCase)) {
+            return "Forgejo blocked the pull request because branch protection rules or repository policy rejected it.";
+        }
+
+        return message;
+    }
+
+    private static string GetRepositoryFailureCode(ApiException exception, string defaultCode) {
+        var message = exception.Message ?? string.Empty;
+        var typeName = exception.GetType().Name ?? string.Empty;
+
+        if (typeName.Contains("Forbidden", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("403", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no error factory is registered", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("forbidden", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("not allowed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("branch protection", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("protection", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("required review", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("policy", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("denied", StringComparison.OrdinalIgnoreCase)) {
+            return "forbidden";
+        }
+
+        return defaultCode;
+    }
 }

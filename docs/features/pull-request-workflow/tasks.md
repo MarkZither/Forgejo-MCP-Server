@@ -15,7 +15,7 @@
 
 ## User Story 1 - Create a pull request from a branch change (Priority: P1)
 
-Current repo status: the request contract, validation rules, and MCP tool surface are implemented. The create-PR flow has been validated against the live Forgejo repository, and the merge path has also been proven through an actual repository merge. The remaining work is to validate the rejection path for branch permissions and repository rules.
+Current repo status: the request contract, validation rules, and MCP tool surface are implemented. The create-PR flow and repository rule rejection path have both been validated, and the merge path has also been proven through the Forgejo API contract and unit/integration regression tests.
 
 ### Models
 
@@ -35,7 +35,7 @@ Current repo status: the request contract, validation rules, and MCP tool surfac
 ### Integration
 
 - [x] Validate the end-to-end create-PR flow using a test repository and confirm the PR is visible with correct metadata.
-- [ ] Verify the user experience fails cleanly when branch permissions or repository rules reject the request.
+- [x] Verify the user experience fails cleanly when branch permissions or repository rules reject the request.
 
 ## User Story 2 - Review and comment on pull request discussion (Priority: P1)
 
@@ -83,7 +83,7 @@ Current repo status: the request contract, validation rules, and MCP tool surfac
 
 ## Polish
 
-- [ ] [P] Review the generated tool surface and ensure each action is exposed as a clear, permission-aware MCP command.
-- [ ] [P] Validate naming consistency across the client library and MCP tool layer.
-- [ ] [P] Confirm the branch, spec, and implementation state match the devsquad workflow before moving to PR preparation.
-- [ ] [P] Record any open risks, follow-up items, and security considerations for the next implementation increment.
+- [x] [P] Review the generated tool surface and ensure each action is exposed as a clear, permission-aware MCP command.
+- [x] [P] Validate naming consistency across the client library and MCP tool layer.
+- [x] [P] Confirm the branch, spec, and implementation state match the devsquad workflow before moving to PR preparation.
+- [x] [P] Record any open risks, follow-up items, and security considerations for the next implementation increment.
