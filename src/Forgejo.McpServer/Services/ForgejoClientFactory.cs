@@ -7,7 +7,7 @@ using Microsoft.Kiota.Serialization.Json;
 namespace Forgejo.McpServer.Services;
 
 public static class ForgejoClientFactory {
-    public static ForgejoClient Create(string baseUrl, string token) {
+    public static ForgejoClient Create(string baseUrl, string token, HttpClient? httpClient = null) {
         if (string.IsNullOrWhiteSpace(baseUrl)) {
             throw new ArgumentException("A Forgejo base URL is required.", nameof(baseUrl));
         }
@@ -24,12 +24,12 @@ public static class ForgejoClientFactory {
             ApiKeyAuthenticationProvider.KeyLocation.Header,
             new[] { uri.Host });
 
-        var httpClient = new HttpClient();
+        var client = httpClient ?? new HttpClient();
         var requestAdapter = new HttpClientRequestAdapter(
             authProvider,
             new JsonParseNodeFactory(),
             new JsonSerializationWriterFactory(),
-            httpClient,
+            client,
             new ObservabilityOptions());
 
         requestAdapter.BaseUrl = normalizedBaseUrl.TrimEnd('/') + "/api/v1";
