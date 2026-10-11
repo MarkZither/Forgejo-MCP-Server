@@ -14,6 +14,158 @@ public sealed class ForgejoPullRequestService {
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
+    public async Task<PullRequestOperationResult> AddCommentAsync(
+        PullRequestCommentRequest request,
+        CancellationToken cancellationToken) {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!request.IsValid) {
+            return PullRequestOperationResult.Failure(
+                "The pull request comment request is incomplete or invalid.",
+                "validation_error",
+                "The repository request is missing a valid pull request number or comment body.");
+        }
+
+        try {
+            var owner = request.Owner.Trim();
+            var repository = request.Repository.Trim();
+            var requestPayload = request.ToCreateIssueCommentOption();
+
+            var createdComment = await _client.Repos[owner][repository].Issues[request.PullRequestNumber].Comments
+                .PostAsync(requestPayload, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            Log.Debug("AddPullRequestComment response: {@CreatedComment}", createdComment);
+
+            if (createdComment is null) {
+                return PullRequestOperationResult.Failure(
+                    "Forgejo did not return a comment after the request was sent.",
+                    "comment_not_created",
+                    "The repository accepted the request but returned no comment metadata.");
+            }
+
+            return PullRequestOperationResult.CreateSuccess(
+                $"Comment added to pull request #{request.PullRequestNumber} in {owner}/{repository}.",
+                createdComment.Id ?? request.PullRequestNumber);
+        } catch (APIValidationError ex) {
+            return MapRepositoryFailure(
+                "Forgejo rejected the comment because the pull request or payload was invalid.",
+                "validation_error",
+                GetRepositoryMessage(ex));
+        } catch (APINotFound ex) {
+            return MapRepositoryFailure(
+                "Forgejo could not find the pull request discussion for this repository.",
+                "not_found",
+                GetRepositoryMessage(ex));
+        } catch (APIForbiddenError ex) {
+            return MapRepositoryFailure(
+                "Forgejo blocked the comment because the token was not allowed to comment on this pull request.",
+                "forbidden",
+                GetRepositoryMessage(ex));
+        } catch (APIUnauthorizedError ex) {
+            return MapRepositoryFailure(
+                "Forgejo rejected the comment because the credential was not authorized.",
+                "unauthorized",
+                GetRepositoryMessage(ex));
+        } catch (APIRepoArchivedError ex) {
+            return MapRepositoryFailure(
+                "Forgejo rejected the comment because the repository is archived.",
+                "repository_archived",
+                GetRepositoryMessage(ex));
+        } catch (APIError ex) {
+            return MapRepositoryFailure(
+                "Forgejo reported a repository error while adding the pull request comment.",
+                "repository_error",
+                GetRepositoryMessage(ex));
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
+            return PullRequestOperationResult.Failure(
+                "An unexpected error occurred while adding the pull request comment.",
+                "unexpected_error",
+                ex.Message);
+        }
+    }
+
+    public async Task<PullRequestDiscussionResult> GetDiscussionAsync(
+        string owner,
+        string repository,
+        long pullRequestNumber,
+        CancellationToken cancellationToken) {
+        if (string.IsNullOrWhiteSpace(owner) ||
+            string.IsNullOrWhiteSpace(repository) ||
+            pullRequestNumber <= 0) {
+            return PullRequestDiscussionResult.Failure(
+                "The pull request discussion request is incomplete or invalid.",
+                "validation_error",
+                "The repository request is missing a valid repository or pull request number.");
+        }
+
+        try {
+            var normalizedOwner = owner.Trim();
+            var normalizedRepository = repository.Trim();
+
+            var pullRequest = await _client.Repos[normalizedOwner][normalizedRepository].Pulls[pullRequestNumber]
+                .GetAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            if (pullRequest is null) {
+                return PullRequestDiscussionResult.Failure(
+                    "Forgejo could not find the pull request discussion for the requested repository state.",
+                    "not_found",
+                    "The repository did not return a pull request for the requested number.");
+            }
+
+            var comments = await _client.Repos[normalizedOwner][normalizedRepository].Issues[pullRequestNumber].Comments
+                .GetAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            var visibleComments = comments?
+                .Select(comment => comment.Body)
+                .Where(body => !string.IsNullOrWhiteSpace(body))
+                .Select(body => body!.Trim())
+                .ToList() ?? new List<string>();
+
+            return PullRequestDiscussionResult.CreateSuccess(
+                $"Retrieved discussion for pull request #{pullRequestNumber} in {normalizedOwner}/{normalizedRepository}.",
+                pullRequest.State,
+                visibleComments);
+        } catch (APIValidationError ex) {
+            return PullRequestDiscussionResult.Failure(
+                "Forgejo rejected the discussion fetch because the pull request reference was invalid.",
+                "validation_error",
+                GetRepositoryMessage(ex));
+        } catch (APINotFound ex) {
+            return PullRequestDiscussionResult.Failure(
+                "Forgejo could not find the pull request discussion for this repository.",
+                "not_found",
+                GetRepositoryMessage(ex));
+        } catch (APIForbiddenError ex) {
+            return PullRequestDiscussionResult.Failure(
+                "Forgejo blocked the discussion lookup because the token was not allowed to read it.",
+                "forbidden",
+                GetRepositoryMessage(ex));
+        } catch (APIUnauthorizedError ex) {
+            return PullRequestDiscussionResult.Failure(
+                "Forgejo rejected the discussion lookup because the credential was not authorized.",
+                "unauthorized",
+                GetRepositoryMessage(ex));
+        } catch (APIRepoArchivedError ex) {
+            return PullRequestDiscussionResult.Failure(
+                "Forgejo rejected the discussion lookup because the repository is archived.",
+                "repository_archived",
+                GetRepositoryMessage(ex));
+        } catch (APIError ex) {
+            return PullRequestDiscussionResult.Failure(
+                "Forgejo reported a repository error while reading the pull request discussion.",
+                "repository_error",
+                GetRepositoryMessage(ex));
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
+            return PullRequestDiscussionResult.Failure(
+                "An unexpected error occurred while reading the pull request discussion.",
+                "unexpected_error",
+                ex.Message);
+        }
+    }
+
     public async Task<PullRequestOperationResult> CreateAsync(
         PullRequestCreateRequest request,
         CancellationToken cancellationToken) {

@@ -41,23 +41,23 @@ Current repo status: the request contract, validation rules, and MCP tool surfac
 
 ### Models
 
-- [ ] [P] Define the comment payload and comment thread model for PR discussion items.
-- [ ] [P] Add retrieval models for existing PR review comments and conversation history.
+- [x] [P] Define the comment payload and comment thread model for PR discussion items.
+- [x] [P] Add retrieval models for existing PR review comments and conversation history.
 
 ### Services
 
-- [ ] Implement the service method for adding comments to a PR thread.
-- [ ] Implement the service method for fetching the latest thread and PR state needed for review context.
+- [x] Implement the service method for adding comments to a PR thread.
+- [x] Implement the service method for fetching the latest thread and PR state needed for review context.
 
 ### Endpoints
 
-- [ ] Add the Forgejo endpoint calls for listing and creating review comments on a PR.
-- [ ] Ensure review comments are associated with the correct repository and PR identity.
+- [x] Add the Forgejo endpoint calls for listing and creating review comments on a PR.
+- [x] Ensure review comments are associated with the correct repository and PR identity.
 
 ### Integration
 
-- [ ] Validate that comments appear in the correct PR thread and can be retrieved later in the workflow.
-- [ ] Confirm that invalid PR IDs or inaccessible repositories return clear, non-success errors.
+- [x] Validate that comments appear in the correct PR thread and can be retrieved later in the workflow.
+- [x] Confirm that invalid PR IDs or inaccessible repositories return clear, non-success errors.
 
 ## User Story 3 - Merge a validated pull request (Priority: P1)
 

@@ -1,5 +1,6 @@
 using System.Net;
-using System.Net.Sockets;
+using System.Net.Http;
+using System.Text;
 using Forgejo.McpServer.Configuration;
 using Forgejo.McpServer.Models;
 using Forgejo.McpServer.Services;
@@ -61,8 +62,8 @@ public class ForgejoPullRequestFoundationTests {
             return;
         }
 
-        var baseUrl = ForgejoTestSettings.BaseUrl;
-        var token = ForgejoTestSettings.Token;
+        var baseUrl = ForgejoTestSettings.BaseUrl ?? throw new InvalidOperationException("Forgejo base URL is required for integration testing.");
+        var token = ForgejoTestSettings.Token ?? throw new InvalidOperationException("Forgejo token is required for integration testing.");
         var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(baseUrl, token));
         var request = new PullRequestCreateRequest(
             "mark",
@@ -85,8 +86,8 @@ public class ForgejoPullRequestFoundationTests {
             return;
         }
 
-        var baseUrl = ForgejoTestSettings.BaseUrl;
-        var token = ForgejoTestSettings.Token;
+        var baseUrl = ForgejoTestSettings.BaseUrl ?? throw new InvalidOperationException("Forgejo base URL is required for integration testing.");
+        var token = ForgejoTestSettings.Token ?? throw new InvalidOperationException("Forgejo token is required for integration testing.");
         var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(baseUrl, token));
         var request = new PullRequestCreateRequest(
             "mark",
@@ -158,7 +159,7 @@ public class ForgejoPullRequestFoundationTests {
         using var server = new LocalForgejoPullRequestServer();
         server.Start();
 
-        var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(server.BaseUrl, "secret-token"));
+        var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(server.BaseUrl, "secret-token", server.HttpClient));
         var request = new PullRequestCreateRequest(
             "mark",
             "demo-repo",
@@ -173,80 +174,151 @@ public class ForgejoPullRequestFoundationTests {
         await Assert.That(result.ErrorCode).IsEqualTo("pull_request_not_visible");
     }
 
-    private sealed class LocalForgejoPullRequestServer : IDisposable {
-        private readonly HttpListener _listener = new();
-        private readonly CancellationTokenSource _cts = new();
+    [Test]
+    public async Task ForgejoPullRequestService_AddComment_RecordsDiscussionComment() {
+        using var server = new LocalPullRequestDiscussionServer();
+        server.Start();
 
-        public string BaseUrl { get; }
+        var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(server.BaseUrl, "secret-token", server.HttpClient));
+        var request = new PullRequestCommentRequest(
+            "mark",
+            "demo-repo",
+            42,
+            "Thanks for the update. The latest notes are clear.");
 
-        public LocalForgejoPullRequestServer() {
-            var port = GetFreeTcpPort();
-            BaseUrl = $"http://localhost:{port}";
-            _listener.Prefixes.Add(BaseUrl + "/");
+        var result = await service.AddCommentAsync(request, CancellationToken.None);
+
+        await Assert.That(result.Success).IsTrue();
+        await Assert.That(result.Message).Contains("Comment");
+    }
+
+    [Test]
+    public async Task ForgejoPullRequestService_GetDiscussion_ReturnsLatestStateAndComments() {
+        using var server = new LocalPullRequestDiscussionServer();
+        server.Start();
+
+        var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(server.BaseUrl, "secret-token", server.HttpClient));
+
+        var discussion = await service.GetDiscussionAsync("mark", "demo-repo", 42, CancellationToken.None);
+
+        await Assert.That(discussion.Success).IsTrue();
+        await Assert.That(discussion.PullRequestState).IsEqualTo("open");
+        await Assert.That(discussion.Comments.Count).IsGreaterThanOrEqualTo(2);
+    }
+
+    [Test]
+    public async Task ForgejoPullRequestService_CommentingMissingPullRequest_ReturnsNotFound() {
+        using var server = new LocalPullRequestDiscussionServer();
+        server.Start();
+
+        var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(server.BaseUrl, "secret-token", server.HttpClient));
+        var request = new PullRequestCommentRequest("mark", "demo-repo", 999, "This should fail");
+
+        var result = await service.AddCommentAsync(request, CancellationToken.None);
+
+        await Assert.That(result.Success).IsFalse();
+        await Assert.That(result.ErrorCode).IsEqualTo("not_found");
+    }
+
+    private sealed class LocalPullRequestDiscussionServer : IDisposable {
+        private readonly HttpClient _httpClient;
+
+        public string BaseUrl { get; } = "https://forgejo.localtest.me";
+        public HttpClient HttpClient => _httpClient;
+
+        public LocalPullRequestDiscussionServer() {
+            _httpClient = new HttpClient(new StubHttpMessageHandler(request => {
+                var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+
+                if (request.Method == HttpMethod.Get && path == "/api/v1/repos/mark/demo-repo/pulls/42") {
+                    return new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new StringContent("{\"id\":42,\"number\":42,\"title\":\"Ready for review\",\"state\":\"open\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (request.Method == HttpMethod.Get && path == "/api/v1/repos/mark/demo-repo/issues/42/comments") {
+                    return new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new StringContent("[{\"id\":1,\"body\":\"Initial review note\"},{\"id\":2,\"body\":\"Looks good\"}]", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (request.Method == HttpMethod.Post && path == "/api/v1/repos/mark/demo-repo/issues/42/comments") {
+                    return new HttpResponseMessage(HttpStatusCode.Created) {
+                        Content = new StringContent("{\"id\":101,\"body\":\"Thanks for the update. The latest notes are clear.\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (request.Method == HttpMethod.Post && path == "/api/v1/repos/mark/demo-repo/issues/999/comments") {
+                    return new HttpResponseMessage(HttpStatusCode.NotFound) {
+                        Content = new StringContent("{\"message\":\"Not Found\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (request.Method == HttpMethod.Get && path == "/api/v1/repos/mark/demo-repo/pulls/999") {
+                    return new HttpResponseMessage(HttpStatusCode.NotFound) {
+                        Content = new StringContent("{\"message\":\"Not Found\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound) {
+                    Content = new StringContent("{\"message\":\"Not Found\"}", Encoding.UTF8, "application/json")
+                };
+            }));
         }
 
         public void Start() {
-            _listener.Start();
-            _ = Task.Run(async () => {
-                while (!_cts.IsCancellationRequested) {
-                    if (!_listener.IsListening) {
-                        return;
-                    }
-
-                    try {
-                        var context = await _listener.GetContextAsync().WaitAsync(_cts.Token);
-                        await HandleAsync(context);
-                    } catch (OperationCanceledException) {
-                        return;
-                    } catch (HttpListenerException) {
-                        return;
-                    }
-                }
-            }, _cts.Token);
         }
 
         public void Dispose() {
-            _cts.Cancel();
-            _listener.Stop();
-            _listener.Close();
-            _cts.Dispose();
+            _httpClient.Dispose();
+        }
+    }
+
+    private sealed class LocalForgejoPullRequestServer : IDisposable {
+        private readonly HttpClient _httpClient;
+
+        public string BaseUrl { get; } = "https://forgejo.localtest.me";
+        public HttpClient HttpClient => _httpClient;
+
+        public LocalForgejoPullRequestServer() {
+            _httpClient = new HttpClient(new StubHttpMessageHandler(request => {
+                var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+
+                if (request.Method == HttpMethod.Post && path == "/api/v1/repos/mark/demo-repo/pulls") {
+                    return new HttpResponseMessage(HttpStatusCode.Created) {
+                        Content = new StringContent("{\"id\":42,\"number\":42,\"title\":\"Visible PR validation\",\"state\":\"open\",\"head\":{\"ref\":\"feature/visible-check\"},\"base\":{\"ref\":\"main\"}}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (request.Method == HttpMethod.Get && path == "/api/v1/repos/mark/demo-repo/pulls") {
+                    return new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new StringContent("[]", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound) {
+                    Content = new StringContent("{\"message\":\"Not Found\"}", Encoding.UTF8, "application/json")
+                };
+            }));
         }
 
-        private async Task HandleAsync(HttpListenerContext context) {
-            var path = context.Request.Url?.AbsolutePath ?? string.Empty;
-
-            if (context.Request.HttpMethod == "POST" && path == "/api/v1/repos/mark/demo-repo/pulls") {
-                var payload = "{\"id\":42,\"number\":42,\"title\":\"Visible PR validation\",\"state\":\"open\",\"head\":{\"ref\":\"feature/visible-check\"},\"base\":{\"ref\":\"main\"}}";
-                context.Response.StatusCode = 201;
-                context.Response.ContentType = "application/json";
-                await using var writer = new StreamWriter(context.Response.OutputStream, leaveOpen: true);
-                await writer.WriteAsync(payload);
-                await writer.FlushAsync();
-                context.Response.Close();
-                return;
-            }
-
-            if (context.Request.HttpMethod == "GET" && path == "/api/v1/repos/mark/demo-repo/pulls") {
-                var json = "[]";
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = "application/json";
-                await using var writer = new StreamWriter(context.Response.OutputStream, leaveOpen: true);
-                await writer.WriteAsync(json);
-                await writer.FlushAsync();
-                context.Response.Close();
-                return;
-            }
-
-            context.Response.StatusCode = 404;
-            context.Response.Close();
+        public void Start() {
         }
 
-        private static int GetFreeTcpPort() {
-            var listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            listener.Stop();
-            return port;
+        public void Dispose() {
+            _httpClient.Dispose();
+        }
+    }
+
+    private sealed class StubHttpMessageHandler : HttpMessageHandler {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;
+
+        public StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory) {
+            _responseFactory = responseFactory ?? throw new ArgumentNullException(nameof(responseFactory));
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+            return Task.FromResult(_responseFactory(request));
         }
     }
 }
