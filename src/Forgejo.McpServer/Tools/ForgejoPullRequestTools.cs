@@ -47,4 +47,17 @@ public sealed class ForgejoPullRequestTools {
         CancellationToken cancellationToken = default) {
         return await _service.GetDiscussionAsync(owner, repository, pullRequestNumber, cancellationToken).ConfigureAwait(false);
     }
+
+    [McpServerTool]
+    [Description("Merges an open Forgejo pull request when the repository policy allows the merge strategy.")]
+    public async Task<PullRequestOperationResult> MergePullRequest(
+        [Description("Forgejo owner or organization name.")] string owner,
+        [Description("Repository name containing the pull request.")] string repository,
+        [Description("Pull request number to merge.")] long pullRequestNumber,
+        [Description("Merge strategy to use, such as merge, squash, rebase, or rebase-merge.")] string mergeStrategy,
+        [Description("Optional merge message used by the repository when creating the merge commit or merge summary.")] string? mergeMessage = null,
+        CancellationToken cancellationToken = default) {
+        var request = new PullRequestMergeRequest(owner, repository, pullRequestNumber, mergeStrategy, mergeMessage);
+        return await _service.MergeAsync(request, cancellationToken).ConfigureAwait(false);
+    }
 }

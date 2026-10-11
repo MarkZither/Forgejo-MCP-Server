@@ -4,6 +4,7 @@ using System.Text;
 using Forgejo.McpServer.Configuration;
 using Forgejo.McpServer.Models;
 using Forgejo.McpServer.Services;
+using MarkZither.Forgejo.ApiClient.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace Forgejo.McpServer.stdio.tests;
@@ -218,6 +219,108 @@ public class ForgejoPullRequestFoundationTests {
 
         await Assert.That(result.Success).IsFalse();
         await Assert.That(result.ErrorCode).IsEqualTo("not_found");
+    }
+
+    [Test]
+    public async Task PullRequestMergeRequest_ValidatesMergeStrategy() {
+        var request = new PullRequestMergeRequest(
+            "acme",
+            "demo-repo",
+            42,
+            "squash",
+            "Ship the fix");
+
+        await Assert.That(request.IsValid).IsTrue();
+        var option = request.ToMergePullRequestOption();
+        await Assert.That(option.Do).IsEqualTo(MergePullRequestOption_Do.Squash);
+        await Assert.That(option.MergeMessageField).IsEqualTo("Ship the fix");
+    }
+
+    [Test]
+    public async Task ForgejoPullRequestService_Merge_MergesSuccessfulPullRequest() {
+        using var server = new LocalMergePullRequestServer();
+        server.Start();
+
+        var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(server.BaseUrl, "secret-token", server.HttpClient));
+        var request = new PullRequestMergeRequest(
+            "mark",
+            "demo-repo",
+            42,
+            "merge",
+            "Merged by the Forgejo MCP workflow");
+
+        var result = await service.MergeAsync(request, CancellationToken.None);
+
+        await Assert.That(result.Success).IsTrue();
+        await Assert.That(result.Merged).IsTrue();
+        await Assert.That(result.Message).Contains("merged");
+    }
+
+    [Test]
+    public async Task ForgejoPullRequestService_Merge_RejectsBlockedPullRequest() {
+        using var server = new LocalMergePullRequestServer();
+        server.Start();
+
+        var service = new ForgejoPullRequestService(ForgejoClientFactory.Create(server.BaseUrl, "secret-token", server.HttpClient));
+        var request = new PullRequestMergeRequest(
+            "mark",
+            "demo-repo",
+            99,
+            "merge",
+            "This should not merge");
+
+        var result = await service.MergeAsync(request, CancellationToken.None);
+
+        await Assert.That(result.Success).IsFalse();
+        await Assert.That(result.ErrorCode).IsEqualTo("merge_blocked");
+    }
+
+    private sealed class LocalMergePullRequestServer : IDisposable {
+        private readonly HttpClient _httpClient;
+
+        public string BaseUrl { get; } = "https://forgejo.localtest.me";
+        public HttpClient HttpClient => _httpClient;
+
+        public LocalMergePullRequestServer() {
+            _httpClient = new HttpClient(new StubHttpMessageHandler(request => {
+                var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+
+                if (request.Method == HttpMethod.Get && path == "/api/v1/repos/mark/demo-repo/pulls/42") {
+                    return new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new StringContent("{\"id\":42,\"number\":42,\"state\":\"open\",\"merged\":false,\"title\":\"Ready for merge\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (request.Method == HttpMethod.Get && path == "/api/v1/repos/mark/demo-repo/pulls/99") {
+                    return new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new StringContent("{\"id\":99,\"number\":99,\"state\":\"open\",\"merged\":false,\"title\":\"Blocked merge\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (request.Method == HttpMethod.Post && path == "/api/v1/repos/mark/demo-repo/pulls/42/merge") {
+                    return new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new StringContent("{\"merged\":true,\"message\":\"Pull Request successfully merged\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (request.Method == HttpMethod.Post && path == "/api/v1/repos/mark/demo-repo/pulls/99/merge") {
+                    return new HttpResponseMessage(HttpStatusCode.Conflict) {
+                        Content = new StringContent("{\"message\":\"Merge blocked by required branch protection checks\"}", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.NotFound) {
+                    Content = new StringContent("{\"message\":\"Not Found\"}", Encoding.UTF8, "application/json")
+                };
+            }));
+        }
+
+        public void Start() {
+        }
+
+        public void Dispose() {
+            _httpClient.Dispose();
+        }
     }
 
     private sealed class LocalPullRequestDiscussionServer : IDisposable {

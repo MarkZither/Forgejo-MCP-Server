@@ -166,6 +166,96 @@ public sealed class ForgejoPullRequestService {
         }
     }
 
+    public async Task<PullRequestOperationResult> MergeAsync(
+        PullRequestMergeRequest request,
+        CancellationToken cancellationToken) {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!request.IsValid) {
+            return PullRequestOperationResult.Failure(
+                "The pull request merge request is incomplete or invalid.",
+                "validation_error",
+                "The repository request is missing a valid pull request number or a supported merge strategy.");
+        }
+
+        try {
+            var owner = request.Owner.Trim();
+            var repository = request.Repository.Trim();
+
+            var pullRequest = await _client.Repos[owner][repository].Pulls[request.PullRequestNumber]
+                .GetAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            if (pullRequest is null) {
+                return PullRequestOperationResult.Failure(
+                    "Forgejo could not find the pull request to merge for the requested repository.",
+                    "not_found",
+                    "The repository did not return a pull request for the requested number.");
+            }
+
+            if (pullRequest.Merged == true || string.Equals(pullRequest.State, "closed", StringComparison.OrdinalIgnoreCase)) {
+                return PullRequestOperationResult.Failure(
+                    "Forgejo will not merge a pull request that has already been merged or closed.",
+                    "already_merged",
+                    "The pull request is not in an open state for a merge operation.");
+            }
+
+            var requestPayload = request.ToMergePullRequestOption();
+            var mergeResult = await _client.Repos[owner][repository].Pulls[request.PullRequestNumber].Merge
+                .PostAsync(requestPayload, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            Log.Debug("MergePullRequest response: {@MergeResult}", mergeResult);
+
+            if (mergeResult is null) {
+                return PullRequestOperationResult.Failure(
+                    "Forgejo did not return a merge result after the merge request was sent.",
+                    "merge_not_completed",
+                    "The repository accepted the merge request but did not return a merge outcome.");
+            }
+
+            return PullRequestOperationResult.CreateSuccess(
+                $"Pull request #{request.PullRequestNumber} in {owner}/{repository} was merged using the {request.MergeStrategy} strategy.",
+                request.PullRequestNumber,
+                merged: true);
+        } catch (APIValidationError ex) {
+            return MapRepositoryFailure(
+                "Forgejo rejected the pull request merge because the request was invalid.",
+                "validation_error",
+                GetRepositoryMessage(ex));
+        } catch (APINotFound ex) {
+            return MapRepositoryFailure(
+                "Forgejo could not find the pull request to merge for this repository.",
+                "not_found",
+                GetRepositoryMessage(ex));
+        } catch (APIForbiddenError ex) {
+            return MapRepositoryFailure(
+                "Forgejo blocked the merge because the token was not allowed to perform it.",
+                "forbidden",
+                GetRepositoryMessage(ex));
+        } catch (APIUnauthorizedError ex) {
+            return MapRepositoryFailure(
+                "Forgejo rejected the merge because the credential was not authorized.",
+                "unauthorized",
+                GetRepositoryMessage(ex));
+        } catch (APIRepoArchivedError ex) {
+            return MapRepositoryFailure(
+                "Forgejo rejected the merge because the repository is archived.",
+                "repository_archived",
+                GetRepositoryMessage(ex));
+        } catch (APIError ex) {
+            return MapRepositoryFailure(
+                "Forgejo blocked the merge because repository policy or merge checks rejected it.",
+                "merge_blocked",
+                GetRepositoryMessage(ex));
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
+            return PullRequestOperationResult.Failure(
+                "An unexpected error occurred while merging the pull request.",
+                "unexpected_error",
+                ex.Message);
+        }
+    }
+
     public async Task<PullRequestOperationResult> CreateAsync(
         PullRequestCreateRequest request,
         CancellationToken cancellationToken) {

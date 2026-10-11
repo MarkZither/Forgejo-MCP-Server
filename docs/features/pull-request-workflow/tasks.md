@@ -63,23 +63,23 @@ Current repo status: the request contract, validation rules, and MCP tool surfac
 
 ### Models
 
-- [ ] [P] Define merge request and merge result models for configured merge strategies.
-- [ ] [P] Add models for conflict and policy rejection states returned by the Forgejo API.
+- [x] [P] Define merge request and merge result models for configured merge strategies.
+- [x] [P] Add models for conflict and policy rejection states returned by the Forgejo API.
 
 ### Services
 
-- [ ] Implement the service method that triggers a merge when repository policies allow it.
-- [ ] Implement validation of PR state before merge to avoid mutating closed, merged, or blocked PRs.
+- [x] Implement the service method that triggers a merge when repository policies allow it.
+- [x] Implement validation of PR state before merge to avoid mutating closed, merged, or blocked PRs.
 
 ### Endpoints
 
-- [ ] Add the merge endpoint call and map API errors into a user-safe failure model.
-- [ ] Confirm the merge strategy selected by the repository is respected and returned in the result metadata.
+- [x] Add the merge endpoint call and map API errors into a user-safe failure model.
+- [x] Confirm the merge strategy selected by the repository is respected and returned in the result metadata.
 
 ### Integration
 
-- [ ] Validate merge success on a valid PR and confirm repository state changes accordingly.
-- [ ] Validate merge rejection when branch protection, conflicts, or policy checks block the request.
+- [x] Validate merge success on a valid PR and confirm repository state changes accordingly.
+- [x] Validate merge rejection when branch protection, conflicts, or policy checks block the request.
 
 ## Polish
 
